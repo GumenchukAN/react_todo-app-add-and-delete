@@ -45,7 +45,7 @@ export const App: React.FC = () => {
     if (!isCreating) {
       inputRef.current?.focus();
     }
-  }, [isCreating]);
+  }, [isCreating, deletingTodoIds, todos]);
 
   const handleFilterBy = (status: Filter) => {
     setFilterStatus(status);
@@ -69,9 +69,21 @@ export const App: React.FC = () => {
   const handleDeleteCompleted = () => {
     const completedTodos = todos.filter(todo => todo.completed);
 
-    Promise.all(completedTodos.map(todo => deleteTodo(todo.id))).then(() => {
-      setTodos(prev => prev.filter(todo => !todo.completed));
-    });
+    Promise.allSettled(completedTodos.map(todo => deleteTodo(todo.id))).then(
+      results => {
+        const failed = results.some(result => result.status === 'rejected');
+
+        if (failed) {
+          setErrorMessage('Unable to delete a todo');
+        }
+
+        const successfulIds = completedTodos
+          .filter((_, index) => results[index].status === 'fulfilled')
+          .map(todo => todo.id);
+
+        setTodos(prev => prev.filter(todo => !successfulIds.includes(todo.id)));
+      },
+    );
   };
 
   const handleAddTodo = () => {
@@ -181,7 +193,7 @@ export const App: React.FC = () => {
 
               {/* overlay will cover the todo while it is being deleted or updated */}
               {isCreating && (
-                <div data-cy="TodoLoader" className="overlay modal">
+                <div data-cy="TodoLoader" className="overlay modal is-active">
                   <div className="modal-background has-background-white-ter" />
                   <div className="loader" />
                 </div>
